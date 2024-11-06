@@ -1,133 +1,114 @@
+import 'dart:convert';
+
+import 'package:expense/model/expense.dart';
 import 'package:expense/new_expense.dart';
-import 'package:expense/widgets/chart/chart.dart';
 import 'package:expense/widgets/expenses_list/expenses_list.dart';
 import 'package:flutter/material.dart';
-import 'model/expense.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Expenses extends StatefulWidget {
   const Expenses({super.key});
 
   @override
-  State<Expenses> createState() => _ExpensesState();
+  _ExpensesState createState() => _ExpensesState();
 }
 
 class _ExpensesState extends State<Expenses> {
-  final List<Expense> _registeredExpenses = [
-    Expense(
-        category: Category.leisure,
-        title: 'Flutter Course',
-        amount: 19.99,
-        date: DateTime.now()),
-    Expense(
-        category: Category.work,
-        title: 'Java Course',
-        amount: 15.69,
-        date: DateTime.now())
-  ];
+  final List<Expense> _registeredExpenses = [];
 
-
-  // Method to calculate total expenses
-  double get totalExpenses {
-    return _registeredExpenses.fold(
-        0.0, (sum, expense) => sum + expense.amount);
+  @override
+  void initState() {
+    super.initState();
+    _loadExpenses();
   }
 
-  _openAddExpenseOverlay() {
-    showModalBottomSheet(
-      useSafeArea: true,
-      isScrollControlled: true,
-      context: context,
-      builder: (ctx) => NewExpense(
-        onAddExpense: _addExpense,
-      ),
-    );
+  Future<void> _saveExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final expensesJson =
+        jsonEncode(_registeredExpenses.map((e) => e.toJson()).toList());
+    await prefs.setString('expenses', expensesJson);
   }
 
-  _addExpense(Expense expense) {
+  Future<void> _loadExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final expensesJson = prefs.getString('expenses');
+    if (expensesJson != null) {
+      final List<dynamic> decodedList = jsonDecode(expensesJson);
+      setState(() {
+        _registeredExpenses.clear();
+        _registeredExpenses.addAll(decodedList.map((e) => Expense.fromJson(e)));
+      });
+    }
+  }
+
+  void _addExpense(Expense expense) {
     setState(() {
       _registeredExpenses.add(expense);
+      _saveExpenses();
     });
   }
 
-  _removeExpense(Expense expense) {
-    final expenseIndex = _registeredExpenses.indexOf(expense);
+  void _editExpense(Expense expense, int index) {
+    setState(() {
+      _registeredExpenses[index] = expense;
+      _saveExpenses();
+    });
+  }
+
+  void _removeExpense(Expense expense) {
     setState(() {
       _registeredExpenses.remove(expense);
+      _saveExpenses();
     });
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Deleted'),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () {
-              setState(() {
-                _registeredExpenses.insert(expenseIndex, expense);
-              });
-            }),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-
-    Widget mainContent = const Center(
-      child: Text('Add an expense and see the Magic'),
-    );
-
-    if (_registeredExpenses.isNotEmpty) {
-      mainContent = ExpensesList(
-        expenses: _registeredExpenses,
-        onRemoveExpense: _removeExpense,
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        //backgroundColor: Colors.blue[900],
+        title: const Text('Expense Tracker'),
         centerTitle: true,
-        title: const Text(
-          'EXPENSE TRACKER',
-        ),
-        actions: [
-          IconButton(
-            onPressed: _openAddExpenseOverlay,
-            icon: const Icon(
-              Icons.add,
-            ),
-          ),
-        ],
       ),
-      //backgroundColor: Colors.grey[300],
-      body: width < 600
-          ? Column(
-              children: [
+      body: ExpensesList(
+        expenses: _registeredExpenses,
+        onRemoveExpense: _removeExpense,
+        onEditExpense: (expense) {
+          final index = _registeredExpenses.indexOf(expense);
+          _showAddOrEditExpense(context, expense, index);
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        shape: CircleBorder(),
+        onPressed: () => _showAddOrEditExpense(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 
-                Chart(expenses: _registeredExpenses),
-
-                const SizedBox(height: 10,),
-                Text(
-                  'Total Expenses: \$${totalExpenses.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10,),
-
-
-                Expanded(child: mainContent),
-        ],
-            )
-          : Row(
-              children: [
-                Expanded(child: Chart(expenses: _registeredExpenses)),
-                Expanded(child: mainContent),
-              ],
-            ),
+  void _showAddOrEditExpense(BuildContext context,
+      [Expense? expense, int? index]) {
+    showModalBottomSheet(
+      enableDrag: true,
+      useSafeArea: true,
+      context: context,
+      isScrollControlled:
+          true, // Allows you to control the size of the bottom sheet
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height, // Fills the screen
+          child: NewExpense(
+            initialExpense: expense,
+            onSaveExpense: (newExpense) {
+              if (index != null) {
+                _editExpense(newExpense, index);
+              } else {
+                _addExpense(newExpense);
+              }
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ),
+      ),
     );
   }
 }

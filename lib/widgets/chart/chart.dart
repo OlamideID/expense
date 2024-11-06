@@ -1,7 +1,6 @@
 import 'package:expense/model/expense.dart';
-import 'package:flutter/material.dart';
-
 import 'package:expense/widgets/chart/chart_bar.dart';
+import 'package:flutter/material.dart';
 
 class Chart extends StatelessWidget {
   const Chart({super.key, required this.expenses});
@@ -10,7 +9,7 @@ class Chart extends StatelessWidget {
 
   List<ExpenseBucket> get buckets {
     return [
-      ExpenseBucket.forCategory(Category.cruise, expenses),
+      ExpenseBucket.forCategory(Category.other, expenses),
       ExpenseBucket.forCategory(Category.food, expenses),
       ExpenseBucket.forCategory(Category.leisure, expenses),
       ExpenseBucket.forCategory(Category.travel, expenses),
